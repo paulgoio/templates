@@ -1,0 +1,170 @@
+stages:
+  - build
+  - deploy-staging
+  - retag
+  - deploy-production
+
+variables:
+  DOCKER_HOST: tcp://docker:2375/
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: ''
+
+build:review:
+  stage: build
+  tags:
+    - docker
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/docker:latest
+  services:
+    - docker:dind
+  before_script:
+    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
+  script:
+    - docker build --pull -f ./Dockerfile -t $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_NAME .
+    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_NAME
+    - echo "echo \"docker exec -it $CI_PROJECT_NAME-$CI_COMMIT_REF_NAME sh\"; docker pull $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_NAME && docker run -it --rm --name $CI_PROJECT_NAME-$CI_COMMIT_REF_NAME $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_NAME" >> run-$CI_PROJECT_NAME-$CI_COMMIT_REF_NAME.sh
+  artifacts:
+    paths:
+     - run-$CI_PROJECT_NAME-$CI_COMMIT_REF_NAME.sh
+    expire_in: 1 week
+  environment:
+    name: review/$CI_COMMIT_REF_NAME
+    on_stop: stop:build:review
+    auto_stop_in: 1 week
+  only:
+    - branches
+  except:
+    - master
+    - main
+
+stop:build:review:
+  stage: build
+  tags:
+    - docker
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/paulgoio/toolkit:production
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - echo "Stopping review/$CI_COMMIT_REF_NAME environment."
+  environment:
+    name: review/$CI_COMMIT_REF_NAME
+    action: stop
+  when: manual
+  only:
+    - branches
+  except:
+    - master
+    - main
+
+build:staging:
+  stage: build
+  tags:
+    - docker
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/docker:latest
+  services:
+    - docker:dind
+  before_script:
+    - docker login -u $DOCKER_USER -p $DOCKER_PASSWD
+  script:
+    - docker build --pull -f ./Dockerfile -t $DOCKER_REPO/$CI_PROJECT_NAME:$CI_ENVIRONMENT_SLUG .
+    - docker push $DOCKER_REPO/$CI_PROJECT_NAME:$CI_ENVIRONMENT_SLUG
+  environment:
+    name: staging
+    url: https://$STAGING_DOMAIN
+  only:
+    - master
+    - main
+
+deploy:staging:
+  stage: deploy-staging
+  tags:
+    - docker
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/paulgoio/toolkit:production
+  before_script:
+    - mkdir -p ~/.ssh
+    - eval $(ssh-agent -s)
+    - '[[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config'
+    - sed -i -e "s/{REPO}/$CI_ENVIRONMENT_SLUG-$CI_PROJECT_NAME/g" -e "s/{ENV}/$CI_ENVIRONMENT_SLUG/g" docker-compose.yml
+    - sed -i -e "s/{DOMAIN}/$STAGING_DOMAIN/g" -e "s/{KEY1}/$KEY1/g" -e "s/{KEY2}/$KEY2/g" -e "s/{KEY3}/$KEY3/g"  -e "s+{IP}+$IP+g" -e "s/{EMAIL}/$EMAIL/g" docker-compose.yml
+  script:
+    - ssh-add <(echo "$SSH_PRIVATE_KEY" | tr -d '\r')
+    - ssh $SSH_USER@$SSH_HOST -p $SSH_PORT -o LogLevel=ERROR "mkdir -p /home/$SSH_USER/$CI_ENVIRONMENT_SLUG-$CI_PROJECT_NAME"
+    - scp -q -P $SSH_PORT ./docker-compose.yml $SSH_USER@$SSH_HOST:/home/$SSH_USER/$CI_ENVIRONMENT_SLUG-$CI_PROJECT_NAME/
+    - ssh $SSH_USER@$SSH_HOST -p $SSH_PORT -o LogLevel=ERROR "source /etc/profile && cd /home/$SSH_USER/$CI_ENVIRONMENT_SLUG-$CI_PROJECT_NAME && docker-compose pull && docker-compose up -d"
+  environment:
+    name: staging
+    url: https://$STAGING_DOMAIN
+    on_stop: stop:deploy:staging
+    auto_stop_in: 12 hours
+  only:
+    - master
+    - main
+  needs: ["build:staging"]
+
+stop:deploy:staging:
+  stage: deploy-staging
+  tags:
+    - docker
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/paulgoio/toolkit:production
+  variables:
+    GIT_STRATEGY: none
+  before_script:
+    - mkdir -p ~/.ssh
+    - eval $(ssh-agent -s)
+    - '[[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config'
+  script:
+    - ssh-add <(echo "$SSH_PRIVATE_KEY" | tr -d '\r')
+    - ssh $SSH_USER@$SSH_HOST -p $SSH_PORT -o LogLevel=ERROR "source /etc/profile && cd /home/$SSH_USER/$CI_ENVIRONMENT_SLUG-$CI_PROJECT_NAME && docker-compose down && rm -rf /home/$SSH_USER/$CI_ENVIRONMENT_SLUG-$CI_PROJECT_NAME"
+  environment:
+    name: staging
+    url: https://$STAGING_DOMAIN
+    action: stop
+  when: manual
+  only:
+    - master
+    - main
+
+retag:production:
+  stage: retag
+  tags:
+    - docker
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/docker:latest
+  services:
+    - docker:dind
+  before_script:
+    - docker login -u $DOCKER_USER -p $DOCKER_PASSWD
+  script:
+    - docker pull $DOCKER_REPO/$CI_PROJECT_NAME:staging
+    - docker tag $DOCKER_REPO/$CI_PROJECT_NAME:staging $DOCKER_REPO/$CI_PROJECT_NAME:$CI_ENVIRONMENT_SLUG
+    - docker push $DOCKER_REPO/$CI_PROJECT_NAME:$CI_ENVIRONMENT_SLUG
+  environment:
+    name: production
+    url: https://$DOMAIN
+  when: manual
+  only:
+    - master
+    - main
+  needs: ["build:staging"]
+
+deploy:production:
+  stage: deploy-production
+  tags:
+    - docker
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/paulgoio/toolkit:production
+  before_script:
+    - mkdir -p ~/.ssh
+    - eval $(ssh-agent -s)
+    - '[[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config'
+    - sed -i -e "s/{REPO}/$CI_PROJECT_NAME/g" -e "s/{ENV}/$CI_ENVIRONMENT_SLUG/g" docker-compose.yml
+    - sed -i -e "s/{DOMAIN}/$DOMAIN/g" -e "s/{KEY1}/$KEY1/g" -e "s/{KEY2}/$KEY2/g" -e "s/{KEY3}/$KEY3/g"  -e "s+{IP}+$IP+g" -e "s/{EMAIL}/$EMAIL/g" docker-compose.yml
+  script:
+    - ssh-add <(echo "$SSH_PRIVATE_KEY" | tr -d '\r')
+    - ssh $SSH_USER@$SSH_HOST -p $SSH_PORT -o LogLevel=ERROR "mkdir -p /home/$SSH_USER/$CI_PROJECT_NAME"
+    - scp -q -P $SSH_PORT ./docker-compose.yml $SSH_USER@$SSH_HOST:/home/$SSH_USER/$CI_PROJECT_NAME/
+    - ssh $SSH_USER@$SSH_HOST -p $SSH_PORT -o LogLevel=ERROR "source /etc/profile && cd /home/$SSH_USER/$CI_PROJECT_NAME && docker-compose pull && docker-compose up -d"
+  environment:
+    name: production
+    url: https://$DOMAIN
+  only:
+    - master
+    - main
+  needs: ["retag:production"]

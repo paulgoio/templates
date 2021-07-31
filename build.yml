@@ -1,0 +1,72 @@
+stages:
+  - build
+
+variables:
+  DOCKER_HOST: tcp://docker:2375/
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: ''
+
+build:review:
+  stage: build
+  tags:
+    - docker
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/docker:latest
+  services:
+    - docker:dind
+  before_script:
+    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
+  script:
+    - docker build --pull -f ./Dockerfile -t $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_NAME .
+    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_NAME
+    - echo "echo \"docker exec -it $CI_PROJECT_NAME-$CI_COMMIT_REF_NAME sh\"; docker pull $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_NAME && docker run -it --rm --name $CI_PROJECT_NAME-$CI_COMMIT_REF_NAME $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_NAME" >> run-$CI_PROJECT_NAME-$CI_COMMIT_REF_NAME.sh
+  artifacts:
+    paths:
+     - run-$CI_PROJECT_NAME-$CI_COMMIT_REF_NAME.sh
+    expire_in: 1 week
+  environment:
+    name: review/$CI_COMMIT_REF_NAME
+    on_stop: stop:build:review
+    auto_stop_in: 1 week
+  only:
+    - branches
+  except:
+    - master
+    - main
+
+stop:build:review:
+  stage: build
+  tags:
+    - docker
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/paulgoio/toolkit:production
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - echo "Stopping review/$CI_COMMIT_REF_NAME environment."
+  environment:
+    name: review/$CI_COMMIT_REF_NAME
+    action: stop
+  when: manual
+  only:
+    - branches
+  except:
+    - master
+    - main
+
+build:production:
+  stage: build
+  tags:
+    - docker
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/docker:latest
+  services:
+    - docker:dind
+  before_script:
+    - docker login -u $DOCKER_USER -p $DOCKER_PASSWD
+  script:
+    - docker build --pull -f ./Dockerfile -t $DOCKER_REPO/$CI_PROJECT_NAME:$CI_ENVIRONMENT_SLUG .
+    - docker push $DOCKER_REPO/$CI_PROJECT_NAME:$CI_ENVIRONMENT_SLUG
+  environment:
+    name: production
+    url: https://$DOMAIN
+  only:
+    - master
+    - main

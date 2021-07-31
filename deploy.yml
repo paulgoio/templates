@@ -1,0 +1,25 @@
+stages:
+  - deploy-production
+
+deploy:production:
+  stage: deploy-production
+  tags:
+    - docker
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/paulgoio/toolkit:production
+  before_script:
+    - mkdir -p ~/.ssh
+    - eval $(ssh-agent -s)
+    - '[[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config'
+    - sed -i -e "s/{REPO}/$CI_PROJECT_NAME/g" -e "s/{ENV}/$CI_ENVIRONMENT_SLUG/g" docker-compose.yml
+    - sed -i -e "s/{DOMAIN}/$DOMAIN/g" -e "s/{KEY1}/$KEY1/g" -e "s/{KEY2}/$KEY2/g" -e "s/{KEY3}/$KEY3/g"  -e "s+{IP}+$IP+g" -e "s/{EMAIL}/$EMAIL/g" docker-compose.yml
+  script:
+    - ssh-add <(echo "$SSH_PRIVATE_KEY" | tr -d '\r')
+    - ssh $SSH_USER@$SSH_HOST -p $SSH_PORT -o LogLevel=ERROR "mkdir -p /home/$SSH_USER/$CI_PROJECT_NAME"
+    - scp -q -P $SSH_PORT ./docker-compose.yml $SSH_USER@$SSH_HOST:/home/$SSH_USER/$CI_PROJECT_NAME/
+    - ssh $SSH_USER@$SSH_HOST -p $SSH_PORT -o LogLevel=ERROR "source /etc/profile && cd /home/$SSH_USER/$CI_PROJECT_NAME && docker-compose pull && docker-compose up -d"
+  environment:
+    name: production
+    url: https://$DOMAIN
+  only:
+    - master
+    - main
