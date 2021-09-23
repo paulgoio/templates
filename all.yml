@@ -89,7 +89,7 @@ deploy:staging:
     - ssh-add <(echo "$SSH_PRIVATE_KEY" | tr -d '\r')
     - ssh $SSH_USER@$SSH_HOST -p $SSH_PORT -o LogLevel=ERROR "mkdir -p /home/$SSH_USER/$CI_ENVIRONMENT_SLUG-$CI_PROJECT_NAME"
     - scp -q -P $SSH_PORT ./docker-compose.yml $SSH_USER@$SSH_HOST:/home/$SSH_USER/$CI_ENVIRONMENT_SLUG-$CI_PROJECT_NAME/
-    - ssh $SSH_USER@$SSH_HOST -p $SSH_PORT -o LogLevel=ERROR "source /etc/profile && cd /home/$SSH_USER/$CI_ENVIRONMENT_SLUG-$CI_PROJECT_NAME && docker-compose pull && docker-compose up -d"
+    - ssh $SSH_USER@$SSH_HOST -p $SSH_PORT -o LogLevel=ERROR "source /etc/profile && cd /home/$SSH_USER/$CI_ENVIRONMENT_SLUG-$CI_PROJECT_NAME && docker-compose pull && docker-compose up -d --remove-orphans"
   environment:
     name: staging
     url: https://$STAGING_DOMAIN
@@ -160,7 +160,7 @@ deploy:production:
     - ssh-add <(echo "$SSH_PRIVATE_KEY" | tr -d '\r')
     - ssh $SSH_USER@$SSH_HOST -p $SSH_PORT -o LogLevel=ERROR "mkdir -p /home/$SSH_USER/$CI_PROJECT_NAME"
     - scp -q -P $SSH_PORT ./docker-compose.yml $SSH_USER@$SSH_HOST:/home/$SSH_USER/$CI_PROJECT_NAME/
-    - ssh $SSH_USER@$SSH_HOST -p $SSH_PORT -o LogLevel=ERROR "source /etc/profile && cd /home/$SSH_USER/$CI_PROJECT_NAME && docker-compose pull && docker-compose up -d"
+    - ssh $SSH_USER@$SSH_HOST -p $SSH_PORT -o LogLevel=ERROR "source /etc/profile && cd /home/$SSH_USER/$CI_PROJECT_NAME && docker-compose pull && docker-compose up -d --remove-orphans"
   environment:
     name: production
     url: https://$DOMAIN
