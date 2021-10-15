@@ -94,7 +94,7 @@ deploy:staging:
     name: staging
     url: https://$STAGING_DOMAIN
     on_stop: stop:deploy:staging
-    auto_stop_in: 12 hours
+    auto_stop_in: 24 hours
   only:
     - master
     - main
