@@ -15,7 +15,8 @@ build:review:
     - docker
   image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/docker:latest
   services:
-    - docker:dind
+    - ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/docker:dind
+      alias: docker
   before_script:
     - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
   script:
@@ -61,7 +62,8 @@ build:staging:
     - docker
   image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/docker:latest
   services:
-    - docker:dind
+    - ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/docker:dind
+      alias: docker
   before_script:
     - docker login -u $DOCKER_USER -p $DOCKER_PASSWD
   script:
@@ -129,7 +131,8 @@ retag:production:
     - docker
   image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/docker:latest
   services:
-    - docker:dind
+    - ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/docker:dind
+      alias: docker
   before_script:
     - docker login -u $DOCKER_USER -p $DOCKER_PASSWD
   script:
