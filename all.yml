@@ -86,7 +86,7 @@ deploy:staging:
     - eval $(ssh-agent -s)
     - '[[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config'
     - sed -i -e "s/{REPO}/$CI_ENVIRONMENT_SLUG-$CI_PROJECT_NAME/g" -e "s/{ENV}/$CI_ENVIRONMENT_SLUG/g" docker-compose.yml
-    - sed -i -e "s/{DOMAIN}/$DOMAIN/g" -e "s/{KEY1}/$KEY1/g" -e "s/{KEY2}/$KEY2/g" -e "s/{KEY3}/$KEY3/g"  -e "s+{IP}+$IP+g" -e "s+{URL1}+$URL1+g" -e "s+{URL2}+$URL2+g" -e "s+{URL3}+$URL3+g" -e "s/{EMAIL}/$EMAIL/g" docker-compose.yml
+    - sed -i -e "s/{DOMAIN}/$STAGING_DOMAIN/g" -e "s/{KEY1}/$KEY1/g" -e "s/{KEY2}/$KEY2/g" -e "s/{KEY3}/$KEY3/g"  -e "s+{IP}+$IP+g" -e "s+{URL1}+$URL1+g" -e "s+{URL2}+$URL2+g" -e "s+{URL3}+$URL3+g" -e "s/{EMAIL}/$EMAIL/g" docker-compose.yml
   script:
     - ssh-add <(echo "$SSH_PRIVATE_KEY" | tr -d '\r')
     - ssh $SSH_USER@$SSH_HOST -p $SSH_PORT -o LogLevel=ERROR "mkdir -p /home/$SSH_USER/$CI_ENVIRONMENT_SLUG-$CI_PROJECT_NAME"
