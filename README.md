@@ -76,7 +76,7 @@ For Deployment:
 
 * ```KEY1``` ```KEY2``` ```KEY3``` : any passwd or key that can be set in your docker-compose file
 
-* ```URL1``` ```URL2``` ```URL3``` : any URL or IP that can be set in your docker-compose file
+* ```URL1``` ```URL2``` ```URL3``` ```URL4``` : any URL or IP that can be set in your docker-compose file
 
 * ```IP``` : any IP address or list of IP addresse's you want to use in your project
 
