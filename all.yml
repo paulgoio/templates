@@ -1,5 +1,6 @@
 stages:
   - build
+  - deploy-develop
   - deploy-staging
   - retag
   - deploy-production
@@ -36,6 +37,7 @@ build:review:
   except:
     - master
     - main
+    - develop
 
 stop:build:review:
   stage: build
@@ -55,6 +57,72 @@ stop:build:review:
   except:
     - master
     - main
+    - develop
+
+build:develop:
+  stage: build
+  tags:
+    - docker
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/docker:latest
+  services:
+    - name: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/docker:dind
+      alias: docker
+  before_script:
+    - docker login -u $DOCKER_USER -p $DOCKER_PASSWD
+  script:
+    - docker build --pull -f ./Dockerfile -t $DOCKER_REPO/$CI_PROJECT_NAME:$CI_ENVIRONMENT_SLUG .
+    - docker push $DOCKER_REPO/$CI_PROJECT_NAME:$CI_ENVIRONMENT_SLUG
+  environment:
+    name: develop
+    url: https://$DEVELOP_DOMAIN
+  only:
+    - develop
+
+deploy:develop:
+  stage: deploy-develop
+  tags:
+    - docker
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/paulgoio/toolkit:production
+  before_script:
+    - mkdir -p ~/.ssh
+    - eval $(ssh-agent -s)
+    - '[[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config'
+    - sed -i -e "s/{REPO}/$CI_ENVIRONMENT_SLUG-$CI_PROJECT_NAME/g" -e "s/{ENV}/$CI_ENVIRONMENT_SLUG/g" docker-compose.yml
+    - sed -i -e "s/{DOMAIN}/$DEVELOP_DOMAIN/g" -e "s+{CLIENT_DOMAIN}+$CLIENT_DEVELOP_DOMAIN+g" -e "s/{KEY1}/$KEY1/g" -e "s/{KEY2}/$KEY2/g" -e "s/{KEY3}/$KEY3/g"  -e "s+{IP}+$IP+g" -e "s+{URL1}+$URL1+g" -e "s+{URL2}+$URL2+g" -e "s+{URL3}+$URL3+g" -e "s/{EMAIL}/$EMAIL/g" docker-compose.yml
+  script:
+    - ssh-add <(echo "$SSH_PRIVATE_KEY" | tr -d '\r')
+    - ssh $SSH_USER@$SSH_HOST -p $SSH_PORT -o LogLevel=ERROR "mkdir -p /home/$SSH_USER/$CI_ENVIRONMENT_SLUG-$CI_PROJECT_NAME"
+    - scp -q -P $SSH_PORT ./docker-compose.yml $SSH_USER@$SSH_HOST:/home/$SSH_USER/$CI_ENVIRONMENT_SLUG-$CI_PROJECT_NAME/
+    - ssh $SSH_USER@$SSH_HOST -p $SSH_PORT -o LogLevel=ERROR "source /etc/profile && cd /home/$SSH_USER/$CI_ENVIRONMENT_SLUG-$CI_PROJECT_NAME && docker-compose pull && docker-compose up -d --remove-orphans"
+  environment:
+    name: develop
+    url: https://$DEVELOP_DOMAIN
+    on_stop: stop:deploy:develop
+  only:
+    - develop
+  needs: ["build:develop"]
+
+stop:deploy:develop:
+  stage: deploy-develop
+  tags:
+    - docker
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/paulgoio/toolkit:production
+  variables:
+    GIT_STRATEGY: none
+  before_script:
+    - mkdir -p ~/.ssh
+    - eval $(ssh-agent -s)
+    - '[[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config'
+  script:
+    - ssh-add <(echo "$SSH_PRIVATE_KEY" | tr -d '\r')
+    - ssh $SSH_USER@$SSH_HOST -p $SSH_PORT -o LogLevel=ERROR "source /etc/profile && cd /home/$SSH_USER/$CI_ENVIRONMENT_SLUG-$CI_PROJECT_NAME && docker-compose down && rm -rf /home/$SSH_USER/$CI_ENVIRONMENT_SLUG-$CI_PROJECT_NAME"
+  environment:
+    name: develop
+    url: https://$DEVELOP_DOMAIN
+    action: stop
+  when: manual
+  only:
+    - develop
 
 build:staging:
   stage: build
@@ -86,7 +154,7 @@ deploy:staging:
     - eval $(ssh-agent -s)
     - '[[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config'
     - sed -i -e "s/{REPO}/$CI_ENVIRONMENT_SLUG-$CI_PROJECT_NAME/g" -e "s/{ENV}/$CI_ENVIRONMENT_SLUG/g" docker-compose.yml
-    - sed -i -e "s/{DOMAIN}/$STAGING_DOMAIN/g" -e "s/{KEY1}/$KEY1/g" -e "s/{KEY2}/$KEY2/g" -e "s/{KEY3}/$KEY3/g"  -e "s+{IP}+$IP+g" -e "s+{URL1}+$URL1+g" -e "s+{URL2}+$URL2+g" -e "s+{URL3}+$URL3+g" -e "s+{URL4}+$URL4+g" -e "s/{EMAIL}/$EMAIL/g" docker-compose.yml
+    - sed -i -e "s/{DOMAIN}/$STAGING_DOMAIN/g" -e "s+{CLIENT_DOMAIN}+$CLIENT_STAGING_DOMAIN+g" -e "s/{KEY1}/$KEY1/g" -e "s/{KEY2}/$KEY2/g" -e "s/{KEY3}/$KEY3/g"  -e "s+{IP}+$IP+g" -e "s+{URL1}+$URL1+g" -e "s+{URL2}+$URL2+g" -e "s+{URL3}+$URL3+g" -e "s/{EMAIL}/$EMAIL/g" docker-compose.yml
   script:
     - ssh-add <(echo "$SSH_PRIVATE_KEY" | tr -d '\r')
     - ssh $SSH_USER@$SSH_HOST -p $SSH_PORT -o LogLevel=ERROR "mkdir -p /home/$SSH_USER/$CI_ENVIRONMENT_SLUG-$CI_PROJECT_NAME"
@@ -158,7 +226,7 @@ deploy:production:
     - eval $(ssh-agent -s)
     - '[[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config'
     - sed -i -e "s/{REPO}/$CI_PROJECT_NAME/g" -e "s/{ENV}/$CI_ENVIRONMENT_SLUG/g" docker-compose.yml
-    - sed -i -e "s/{DOMAIN}/$DOMAIN/g" -e "s/{KEY1}/$KEY1/g" -e "s/{KEY2}/$KEY2/g" -e "s/{KEY3}/$KEY3/g"  -e "s+{IP}+$IP+g" -e "s+{URL1}+$URL1+g" -e "s+{URL2}+$URL2+g" -e "s+{URL3}+$URL3+g" -e "s+{URL4}+$URL4+g" -e "s/{EMAIL}/$EMAIL/g" docker-compose.yml
+    - sed -i -e "s/{DOMAIN}/$DOMAIN/g" -e "s+{CLIENT_DOMAIN}+$CLIENT_DOMAIN+g" -e "s/{KEY1}/$KEY1/g" -e "s/{KEY2}/$KEY2/g" -e "s/{KEY3}/$KEY3/g"  -e "s+{IP}+$IP+g" -e "s+{URL1}+$URL1+g" -e "s+{URL2}+$URL2+g" -e "s+{URL3}+$URL3+g" -e "s/{EMAIL}/$EMAIL/g" docker-compose.yml
   script:
     - ssh-add <(echo "$SSH_PRIVATE_KEY" | tr -d '\r')
     - ssh $SSH_USER@$SSH_HOST -p $SSH_PORT -o LogLevel=ERROR "mkdir -p /home/$SSH_USER/$CI_PROJECT_NAME"

@@ -74,9 +74,17 @@ For Deployment:
 
 * ```STAGING_DOMAIN``` : is meant for your staging domain [www.staging.example.org], is going to be set for the env
 
+* ```DEVELOP_DOMAIN``` : is meant for your develop domain [www.dev.example.org], is going to be set for the env; built from develop branch
+
+* ```CLIENT_DOMAIN``` : is meant for your client domain [www.example.org], is going to be set for the env
+
+* ```CLIENT_STAGING_DOMAIN``` : is meant for your client staging domain [www.staging.example.org], is going to be set for the env
+
+* ```CLIENT_DEVELOP_DOMAIN``` : is meant for your client develop domain [www.dev.example.org], is going to be set for the env; built from develop branch
+
 * ```KEY1``` ```KEY2``` ```KEY3``` : any passwd or key that can be set in your docker-compose file
 
-* ```URL1``` ```URL2``` ```URL3``` ```URL4``` : any URL or IP that can be set in your docker-compose file
+* ```URL1``` ```URL2``` ```URL3``` : any URL or IP that can be set in your docker-compose file
 
 * ```IP``` : any IP address or list of IP addresse's you want to use in your project
 
