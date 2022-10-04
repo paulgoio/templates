@@ -59,13 +59,15 @@ For Building and pushing the image to repo:
 
 For Deployment:
 
-* ```SSH_HOST``` : the ip or a dns name pointing to the deployment server with ssh and docker as well as docker-compose installed
+* ```DEPLOY_TARGETS``` : comma seperated list of deploy targets for each deploy target the 4 vars underneath need to be defined (example: `VPS01,DOCKER_VM` then you would need to define: `VPS01_HOST` and so on...)
 
-* ```SSH_PORT``` : the ssh port on that deployment server
+* ```[DEPLOY_TARGET_NAME]_HOST``` : the ip or a dns name pointing to the deployment server with ssh and docker as well as docker-compose installed
 
-* ```SSH_USER``` : ssh user used to deploy the services
+* ```[DEPLOY_TARGET_NAME]_PORT``` : the ssh port on that deployment server
 
-* ```SSH_PRIVATE_KEY``` : private key used to authenticate with deployment server; you can just generate a new key and copy the key with `ssh-copy-id user@server` to the server
+* ```[DEPLOY_TARGET_NAME]_USER``` : ssh user used to deploy the services
+
+* ```[DEPLOY_TARGET_NAME]_PRIVATE_KEY``` : private key used to authenticate with deployment server; you can just generate a new key and copy the key with `ssh-copy-id user@server` to the server
 
 
 ### Variables you can set in your project

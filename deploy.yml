@@ -13,10 +13,12 @@ deploy:production:
     - sed -i -e "s/{REPO}/$CI_PROJECT_NAME/g" -e "s/{ENV}/$CI_ENVIRONMENT_SLUG/g" docker-compose.yml
     - sed -i -e "s/{DOMAIN}/$DOMAIN/g" -e "s+{CLIENT_DOMAIN}+$CLIENT_DOMAIN+g" -e "s/{KEY1}/$KEY1/g" -e "s/{KEY2}/$KEY2/g" -e "s/{KEY3}/$KEY3/g"  -e "s+{IP}+$IP+g" -e "s+{URL1}+$URL1+g" -e "s+{URL2}+$URL2+g" -e "s+{URL3}+$URL3+g" -e "s/{EMAIL}/$EMAIL/g" docker-compose.yml
   script:
-    - ssh-add <(echo "$SSH_PRIVATE_KEY" | tr -d '\r')
-    - ssh $SSH_USER@$SSH_HOST -p $SSH_PORT -o LogLevel=ERROR "mkdir -p /home/$SSH_USER/$CI_PROJECT_NAME"
-    - scp -q -P $SSH_PORT ./docker-compose.yml $SSH_USER@$SSH_HOST:/home/$SSH_USER/$CI_PROJECT_NAME/
-    - ssh $SSH_USER@$SSH_HOST -p $SSH_PORT -o LogLevel=ERROR "source /etc/profile && cd /home/$SSH_USER/$CI_PROJECT_NAME && docker-compose pull && docker-compose up -d --remove-orphans"
+    - deploy=($(echo ${DEPLOY_TARGETS} | tr ',' ' '))
+    - for i in "${deploy[@]}"; do key=${i}_PRIVATE_KEY; host=${i}_HOST; user=${i}_USER; port=${i}_PORT; \
+      ssh-add <(echo "${!key}" | tr -d '\r'); \
+      ssh ${!user}@${!host} -p ${!port} -o LogLevel=ERROR "mkdir -p /home/${!user}/$CI_PROJECT_NAME"; \
+      scp -q -P ${!port} ./docker-compose.yml ${!user}@${!host}:/home/${!user}/$CI_PROJECT_NAME/; \
+      ssh ${!user}@${!host} -p ${!port} -o LogLevel=ERROR "source /etc/profile && cd /home/${!user}/$CI_PROJECT_NAME && docker-compose pull && docker-compose up -d --remove-orphans"; done
   environment:
     name: production
     url: https://$DOMAIN
