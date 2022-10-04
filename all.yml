@@ -253,3 +253,4 @@ deploy:production:
   only:
     - master
     - main
+  needs: ["retag:production"]
